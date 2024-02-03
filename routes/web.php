@@ -28,7 +28,56 @@ use Illuminate\Support\Facades\Process;
 |
 */
 
+// webpage
+// text inout
+// form
+// show response
+// growing list
+
+// a route conversation page
+// a route form submission
+
+// conversation model
+// message model
+
+// create conversation
+// save prompts and responses
+Route::get('/conversation/{id}', function ($id) {
+    $conversation = $id == 'new' ? null : Conversation::find($id);
+    return view('conversation', [
+        'conversation' => $conversation
+    ]);
+})->name('conversation');
+
+Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
+    if ($id == 'new') {
+        $conversation = Conversation::create();
+    } else {
+        $conversation = Conversation::find($id);
+    }
+
+    $conversation->messages()->create([
+        'content' => $request->input('prompt'),
+        'role' => 'user',
+    ]);
+
+    $messages = $conversation->messages->map(function (Message $message) {
+        return [
+            'content' => $message->content,
+            'role' => 'user',
+        ];
+    })->toArray();
+
+    $result = $prompt->handle($messages);
+
+    $conversation->messages()->create([
+        'content' => $result->choices[0]->message->content,
+        'role' => 'assistant',
+    ]);
+
+    return redirect()->route('conversation', ['id'=> $conversation->id]);
+})->name('chat');
+
 Route::get('/', function (FirstPrompt $prompt) {
-    return response()->json($prompt->handle('Hello, who are you?'));
     return view('welcome');
 });
