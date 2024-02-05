@@ -68,7 +68,12 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
         ];
     })->toArray();
 
-    $result = $prompt->handle($messages);
+    $systemMessage = [
+        'role' => 'system',
+        'content' => 'The user\'s name is Danny',
+    ];
+    
+    $result = $prompt->handle(array_merge([$systemMessage], $messages));
 
     $conversation->messages()->create([
         'content' => $result->choices[0]->message->content,
