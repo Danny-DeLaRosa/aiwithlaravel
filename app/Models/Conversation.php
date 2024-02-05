@@ -13,4 +13,10 @@ class Conversation extends Model
     {
         return $this->hasMany(Message::class);
     }
+
+    public function convo_day_of_week()
+    {
+        $created_at = $this->created_at->format('l');
+        return $created_at;
+    }
 }
