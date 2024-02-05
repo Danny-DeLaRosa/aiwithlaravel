@@ -72,7 +72,7 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
         'role' => 'system',
         'content' => 'The user\'s name is Danny',
     ];
-    
+
     $result = $prompt->handle(array_merge([$systemMessage], $messages));
 
     $conversation->messages()->create([
@@ -80,9 +80,61 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
         'role' => 'assistant',
     ]);
 
-    return redirect()->route('conversation', ['id'=> $conversation->id]);
+    return redirect()->route('conversation', ['id' => $conversation->id]);
 })->name('chat');
 
 Route::get('/', function (FirstPrompt $prompt) {
-    return view('welcome');
+    $pinecone = new Pinecone('99e5c015-bb41-4486-b8da-3b9a6ca8beab', 'gcp-starter');
+
+    $values1 = [
+        'My name is Omniman',
+        // 'I live on viltrumite',
+        'Badgers just don\'t care',
+    ];
+
+    $values2 = [
+        'My name is Danny',
+        'I live in San Diego',
+        // 'Badgers just don\'t care about me',
+    ];
+
+    $embeddings = OpenAI::embeddings()->create([
+        'model' => 'text-embedding-ada-002',
+        'input' => $values1,
+    ])->embeddings;
+
+    $result = $pinecone->index('chatbot')->vectors()->upsert(
+        collect($embeddings)->map(fn($embedding, $idx) => [
+            'id' => (string) $idx,
+            'values' => $embedding->embedding,
+            'metadata' => [
+                'text' => $values1[$idx]
+            ]
+        ])->toArray()
+    , namespace: 'Omniman');
+
+    $embeddings = OpenAI::embeddings()->create([
+        'model' => 'text-embedding-ada-002',
+        'input' => $values2,
+    ])->embeddings;
+
+    $result = $pinecone->index('chatbot')->vectors()->upsert(
+        collect($embeddings)->map(fn($embedding, $idx) => [
+            'id' => (string) $idx,
+            'values' => $embedding->embedding,
+            'metadata' => [
+                'text' => $values2[$idx]
+            ]
+        ])->toArray()
+    , namespace: 'Danny');
+
+    $question = OpenAI::embeddings()->create([
+        'model' => 'text-embedding-ada-002',
+        'input' => [
+            'Tell me something about me.',
+        ]
+    ]);
+
+    $result = $pinecone->index('chatbot')->vectors()->query(vector: $question->embeddings[0]->embedding, namespace: 'Danny', topK: 4)->json();
+    dd($result);
 });
