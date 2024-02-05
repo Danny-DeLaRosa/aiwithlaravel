@@ -83,8 +83,13 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
     return redirect()->route('conversation', ['id' => $conversation->id]);
 })->name('chat');
 
+
 Route::get('/', function (FirstPrompt $prompt) {
-    $pinecone = new Pinecone('99e5c015-bb41-4486-b8da-3b9a6ca8beab', 'gcp-starter');
+    $pinecone_api_key = config('pinecone.api_key');
+    $pinecone_index = config('pinecone.index');
+    $pinecone_environment = config('pinecone.environment');
+
+    $pinecone = new Pinecone($pinecone_api_key, $pinecone_environment);
 
     $values1 = [
         'My name is Omniman',
@@ -103,7 +108,7 @@ Route::get('/', function (FirstPrompt $prompt) {
         'input' => $values1,
     ])->embeddings;
 
-    $result = $pinecone->index('chatbot')->vectors()->upsert(
+    $result = $pinecone->index($pinecone_index)->vectors()->upsert(
         collect($embeddings)->map(fn($embedding, $idx) => [
             'id' => (string) $idx,
             'values' => $embedding->embedding,
@@ -118,7 +123,7 @@ Route::get('/', function (FirstPrompt $prompt) {
         'input' => $values2,
     ])->embeddings;
 
-    $result = $pinecone->index('chatbot')->vectors()->upsert(
+    $result = $pinecone->index($pinecone_index)->vectors()->upsert(
         collect($embeddings)->map(fn($embedding, $idx) => [
             'id' => (string) $idx,
             'values' => $embedding->embedding,
@@ -135,6 +140,6 @@ Route::get('/', function (FirstPrompt $prompt) {
         ]
     ]);
 
-    $result = $pinecone->index('chatbot')->vectors()->query(vector: $question->embeddings[0]->embedding, namespace: 'Danny', topK: 4)->json();
+    $result = $pinecone->index($pinecone_index)->vectors()->query(vector: $question->embeddings[0]->embedding, namespace: 'Danny', topK: 4)->json();
     dd($result);
 });
