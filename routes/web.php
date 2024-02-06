@@ -68,9 +68,24 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
         ];
     })->toArray();
 
+    $pinecone_api_key = config('pinecone.api_key');
+    $pinecone_environment = config('pinecone.environment');
+
+    $pinecone = new Pinecone($pinecone_api_key, $pinecone_environment);
+
+    $question = OpenAI::embeddings()->create([
+        'model' => 'text-embedding-ada-002',
+        'input' => $request->input('prompt')
+    ]);
+
+    $result = $pinecone->index('chatbot')->vectors()->query(vector: $question->embeddings[0]->embedding, namespace: 'podcast', topK: 4)->json();
+
     $systemMessage = [
         'role' => 'system',
-        'content' => 'The user\'s name is Danny',
+        'content' => sprintf(
+            'Base your answer on the February 2023 podcast episode between Tim Urban and Lex Friedman. Here are some snippits from that episode that may help you answer: %s',
+            collect($result['matches'])->pluck('metadata.text')->join("\n\n---\n\n"),
+        ),
     ];
 
     $result = $prompt->handle(array_merge([$systemMessage], $messages));
@@ -85,61 +100,5 @@ Route::post('chat/{id}', function (Request $request, FirstPrompt $prompt, $id) {
 
 
 Route::get('/', function (FirstPrompt $prompt) {
-    $pinecone_api_key = config('pinecone.api_key');
-    $pinecone_index = config('pinecone.index');
-    $pinecone_environment = config('pinecone.environment');
 
-    $pinecone = new Pinecone($pinecone_api_key, $pinecone_environment);
-
-    $values1 = [
-        'My name is Omniman',
-        // 'I live on viltrumite',
-        'Badgers just don\'t care',
-    ];
-
-    $values2 = [
-        'My name is Danny',
-        'I live in San Diego',
-        // 'Badgers just don\'t care about me',
-    ];
-
-    $embeddings = OpenAI::embeddings()->create([
-        'model' => 'text-embedding-ada-002',
-        'input' => $values1,
-    ])->embeddings;
-
-    $result = $pinecone->index($pinecone_index)->vectors()->upsert(
-        collect($embeddings)->map(fn($embedding, $idx) => [
-            'id' => (string) $idx,
-            'values' => $embedding->embedding,
-            'metadata' => [
-                'text' => $values1[$idx]
-            ]
-        ])->toArray()
-    , namespace: 'Omniman');
-
-    $embeddings = OpenAI::embeddings()->create([
-        'model' => 'text-embedding-ada-002',
-        'input' => $values2,
-    ])->embeddings;
-
-    $result = $pinecone->index($pinecone_index)->vectors()->upsert(
-        collect($embeddings)->map(fn($embedding, $idx) => [
-            'id' => (string) $idx,
-            'values' => $embedding->embedding,
-            'metadata' => [
-                'text' => $values2[$idx]
-            ]
-        ])->toArray()
-    , namespace: 'Danny');
-
-    $question = OpenAI::embeddings()->create([
-        'model' => 'text-embedding-ada-002',
-        'input' => [
-            'Tell me something about me.',
-        ]
-    ]);
-
-    $result = $pinecone->index($pinecone_index)->vectors()->query(vector: $question->embeddings[0]->embedding, namespace: 'Danny', topK: 4)->json();
-    dd($result);
 });
